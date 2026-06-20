@@ -14,7 +14,7 @@ public enum PaymentStatus {
     EXPIRED,
     FAILED;
 
-    public PaymentStatus transitionTo(PaymentStatus next) throws InvalidTransitionException {
+    public PaymentStatus transitionTo(PaymentStatus next) {
         if (!canTransitionTo(next)) {
             throw new InvalidTransitionException(
                 "Cannot transition from " + this + " to " + next
