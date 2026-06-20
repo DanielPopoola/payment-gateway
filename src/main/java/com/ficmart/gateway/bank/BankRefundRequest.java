@@ -1,6 +1,6 @@
 package com.ficmart.gateway.bank;
 
-public record RefundRequest(
+public record BankRefundRequest(
     Long amount,
     String captureId
 ) {}

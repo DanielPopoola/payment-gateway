@@ -1,6 +1,6 @@
 package com.ficmart.gateway.bank;
 
-public record CaptureRequest(
+public record BankCaptureRequest(
     Long amount,
     String authorizationId
 ) {}

@@ -2,11 +2,11 @@ package com.ficmart.gateway.bank;
 
 import java.time.Instant;
 
-public record CaptureResponse(
+public record BankRefundResponse(
     Long amount,
-    String authorizationId,
     String captureId,
-    Instant capturedAt,
     String currency,
+    String refundId,
+    Instant refundedAt,
     String status
 ) {}

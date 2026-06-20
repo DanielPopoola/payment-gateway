@@ -31,7 +31,7 @@ public class Payment {
     private Long customerId;
 
     @Column(name = "amount_cents", nullable = false)
-    private Long amount;
+    private Long amountCents;
 
     @Column(name = "currency", nullable = false)
     private String currency;

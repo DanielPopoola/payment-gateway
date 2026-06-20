@@ -6,6 +6,7 @@ import java.util.function.Supplier;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 import com.ficmart.gateway.common.GatewayException;
@@ -28,22 +29,22 @@ public class RetryingBankClient implements BankClient {
     }
 
     @Override
-    public AuthorizationResponse authorize(AuthorizeRequest request, String idempotencyKey) {
+    public BankAuthorizationResponse authorize(BankAuthorizeRequest request, String idempotencyKey) {
         return withRetry(() -> delegate.authorize(request, idempotencyKey));
     }
 
     @Override
-    public CaptureResponse capture(CaptureRequest request, String idempotencyKey) {
+    public BankCaptureResponse capture(BankCaptureRequest request, String idempotencyKey) {
         return withRetry(() -> delegate.capture(request, idempotencyKey));
     }
 
     @Override
-    public VoidResponse void_(VoidRequest request, String idempotencyKey) {
+    public BankVoidResponse void_(BankVoidRequest request, String idempotencyKey) {
         return withRetry(() -> delegate.void_(request, idempotencyKey));
     }
 
     @Override
-    public RefundResponse refund(RefundRequest request, String idempotencyKey) {
+    public BankRefundResponse refund(BankRefundRequest request, String idempotencyKey) {
         return withRetry(() -> delegate.refund(request, idempotencyKey));
     }
 
@@ -70,7 +71,7 @@ public class RetryingBankClient implements BankClient {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new GatewayException("Retry interrupted", 
-                org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR, 
+                HttpStatus.INTERNAL_SERVER_ERROR, 
                 "retry_interrupted", null);
         }
     }

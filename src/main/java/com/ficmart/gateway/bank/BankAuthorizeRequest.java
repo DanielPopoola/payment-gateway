@@ -1,6 +1,6 @@
 package com.ficmart.gateway.bank;
 
-public record AuthorizeRequest(
+public record BankAuthorizeRequest(
     Long amount,
     String cardNumber,
     String cvv,

@@ -2,7 +2,7 @@ package com.ficmart.gateway.bank;
 
 import java.time.Instant;
 
-public record AuthorizationResponse(
+public record BankAuthorizationResponse(
     Long amount,
     String authorizationId,
     Instant createdAt,

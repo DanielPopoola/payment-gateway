@@ -47,42 +47,42 @@ public class BankApiClient implements BankClient {
     }
 
     @Override
-    public AuthorizationResponse authorize(AuthorizeRequest request, String idempotencyKey) {
+    public BankAuthorizationResponse authorize(BankAuthorizeRequest request, String idempotencyKey) {
         return restClient.post()
             .uri("/api/v1/authorizations")
             .header("Idempotency-Key", idempotencyKey)
             .body(request)
             .retrieve()
-            .body(AuthorizationResponse.class);
+            .body(BankAuthorizationResponse.class);
     }
 
     @Override
-    public CaptureResponse capture(CaptureRequest request, String idempotencyKey) {
+    public BankCaptureResponse capture(BankCaptureRequest request, String idempotencyKey) {
         return restClient.post()
             .uri("/api/v1/captures")
             .header("Idempotency-Key", idempotencyKey)
             .body(request)
             .retrieve()
-            .body(CaptureResponse.class);
+            .body(BankCaptureResponse.class);
     }
 
     @Override
-    public VoidResponse void_(VoidRequest request, String idempotencyKey) {
+    public BankVoidResponse void_(BankVoidRequest request, String idempotencyKey) {
         return restClient.post()
             .uri("/api/v1/voids")
             .header("Idempotency-Key", idempotencyKey)
             .body(request)
             .retrieve()
-            .body(VoidResponse.class);
+            .body(BankVoidResponse.class);
     }
     
     @Override
-    public RefundResponse refund(RefundRequest request, String idempotencyKey) {
+    public BankRefundResponse refund(BankRefundRequest request, String idempotencyKey) {
         return restClient.post()
             .uri("/api/v1/refunds")
             .header("Idempotency-Key", idempotencyKey)
             .body(request)
             .retrieve()
-            .body(RefundResponse.class);
+            .body(BankRefundResponse.class);
     }
 }
