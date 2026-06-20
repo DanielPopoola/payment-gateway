@@ -1,0 +1,14 @@
+spring:
+    datasource:
+        url: jdbc:postgresql://localhost:5432/gateway
+        username: postgres
+        password: changeme
+
+bank:
+    base-url: http://localhost:8787
+    retry:
+        max-attempts: 3
+        base-delay-ms: 200
+    timeout:
+        connect-ms: 3000
+        read-ms: 5000

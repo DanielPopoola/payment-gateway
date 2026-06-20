@@ -1,0 +1,26 @@
+spring:
+    application:
+        name: gateway
+
+    datasource:
+        url: ${DB_URL:jdbc:postgresql://localhost:5433/gateway}
+        username: ${DB_USERNAME:postgres}
+        password: ${DB_PASSWORD:postgres}
+
+    jpa:
+        hibernate:
+            ddl-auto: validate
+        show-sql: false
+        open-in-view: false
+
+    flyway:
+        enabled: true
+
+bank:
+    base-url: ${BANK_BASE_URL:http://localhost:8787}
+    retry:
+        max-attempts: ${BANK_RETRY_MAX_ATTEMPTS:3}
+        base-delay-ms: ${BANK_RETRY_BASE_DELAY_MS:200}
+    timeout:
+        connect-ms: ${BANK_CONNECT_TIMEOUT_MS:3000}
+        read-ms: ${BANK_READ_TIMEOUT_MS:5000}
