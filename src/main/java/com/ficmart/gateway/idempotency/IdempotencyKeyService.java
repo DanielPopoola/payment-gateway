@@ -5,7 +5,6 @@ import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -78,7 +77,6 @@ public class IdempotencyKeyService {
      *
      * @return the saved entity, needed by the caller to pass to {@link #unlock}
      */
-    @Transactional
     public IdempotencyKey lock(Long customerId, UUID idempotencyKey, UUID paymentId, String requestHash) {
         Instant now = Instant.now();
         IdempotencyKey entity = new IdempotencyKey();
@@ -96,7 +94,6 @@ public class IdempotencyKeyService {
      * Clears the in-flight signal and stores the final response, making the key
      * replayable for future duplicate requests. Called in phase 2 after the bank responds.
      */
-    @Transactional
     public void unlock(IdempotencyKey entity, Integer responseCode, String responseBody) {
         entity.setLockedAt(null);
         entity.setResponseCode(responseCode);
