@@ -30,6 +30,11 @@ public enum PaymentStatus {
     EXPIRED,
     FAILED;
 
+    /**
+     * Transitions this status to {@code next}, enforcing the valid lifecycle rules.
+     *
+     * @throws InvalidTransitionException if the transition is not permitted
+     */
     public PaymentStatus transitionTo(PaymentStatus next) {
         if (!canTransitionTo(next)) {
             throw new InvalidTransitionException(

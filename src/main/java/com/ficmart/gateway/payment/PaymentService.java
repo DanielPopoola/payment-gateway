@@ -239,6 +239,14 @@ public class PaymentService {
         }
     }
 
+    /**
+     * Serializes a payment object to JSON for storage in the idempotency key's
+     * {@code response_body} column, so duplicate requests can replay the original response
+     * without hitting the bank again.
+     *
+     * <p>Uses the shared {@link ObjectMapper} bean (snake_case configured) to ensure
+     * the stored JSON matches what the client originally received.
+     */
     private String serialize(Object obj) {
         try {
             return objectMapper.writeValueAsString(obj);

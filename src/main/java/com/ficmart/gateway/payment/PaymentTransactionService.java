@@ -119,6 +119,10 @@ public class PaymentTransactionService {
         return payment;
     }
 
+    /**
+     * Phase 2 of capture on bank success. Transitions payment to {@code CAPTURED},
+     * stores the bank capture ID and timestamp, and writes the {@code CAPTURE_SUCCEEDED} event.
+     */
     @Transactional
     public Payment capturePhaseTwoSuccess(Payment payment, BankCaptureResponse bankResponse, UUID idempotencyKey) {
         payment.setStatus(PaymentStatus.CAPTURED);
@@ -132,6 +136,10 @@ public class PaymentTransactionService {
         return payment;
     }
     
+    /**
+     * Phase 2 of capture on permanent bank failure. Transitions payment to {@code FAILED}
+     * and writes the {@code CAPTURE_FAILED} event.
+     */
     @Transactional
     public void capturePhaseTwoFailure(Payment payment, GatewayException ex, UUID idempotencyKey) {
         payment.setStatus(PaymentStatus.FAILED);
@@ -142,6 +150,10 @@ public class PaymentTransactionService {
         saveEvent(payment.getId(), idempotencyKey, PaymentEventType.CAPTURE_FAILED);
     }
 
+    /**
+     * Phase 2 of void on bank success. Transitions payment to {@code VOIDED},
+     * stores the bank void ID and timestamp, and writes the {@code VOID_SUCCEEDED} event.
+     */
     @Transactional
     public Payment voidPhaseOne(UUID paymentId, UUID idempotencyKey) {
         Payment payment = paymentRepository.findByIdForUpdate(paymentId)
@@ -157,6 +169,10 @@ public class PaymentTransactionService {
         return payment;
     }
 
+    /**
+     * Phase 2 of void on bank success. Transitions payment to {@code VOIDED},
+     * stores the bank void ID and timestamp, and writes the {@code VOID_SUCCEEDED} event.
+     */
     @Transactional
     public Payment voidPhaseTwoSuccess(Payment payment, BankVoidResponse bankResponse, UUID idempotencyKey) {
         payment.setStatus(PaymentStatus.VOIDED);
@@ -170,6 +186,10 @@ public class PaymentTransactionService {
         return payment;
     }
 
+    /**
+     * Phase 2 of void on permanent bank failure. Transitions payment to {@code FAILED}
+     * and writes the {@code VOID_FAILED} event.
+     */
     @Transactional
     public void voidPhaseTwoFailure(Payment payment, GatewayException ex, UUID idempotencyKey) {
         payment.setStatus(PaymentStatus.FAILED);
@@ -180,6 +200,14 @@ public class PaymentTransactionService {
         saveEvent(payment.getId(), idempotencyKey, PaymentEventType.VOID_FAILED);
     }
 
+    /**
+     * Phase 1 of refund. Loads the payment with a pessimistic lock ({@code SELECT FOR UPDATE}),
+     * validates the state machine transition to {@code REFUNDING}, and writes the
+     * {@code REFUND_REQUESTED} event. The lock is released when this transaction commits.
+     *
+     * <p>The {@code REFUNDING} intermediate status blocks competing operations
+     * and signals the reconciliation worker on crash recovery.
+     */
     @Transactional
     public Payment refundPhaseOne(UUID paymentId, UUID idempotencyKey) {
         Payment payment = paymentRepository.findByIdForUpdate(paymentId)
@@ -195,6 +223,10 @@ public class PaymentTransactionService {
         return payment;
     }
 
+    /**
+     * Phase 2 of refund on bank success. Transitions payment to {@code REFUNDED},
+     * stores the bank refund ID and timestamp, and writes the {@code REFUND_SUCCEEDED} event.
+     */
     @Transactional
     public Payment refundPhaseTwoSuccess(Payment payment, BankRefundResponse bankResponse, UUID idempotencyKey) {
         payment.setStatus(PaymentStatus.REFUNDED);
@@ -208,6 +240,10 @@ public class PaymentTransactionService {
         return payment;
     }
 
+    /**
+     * Phase 2 of refund on permanent bank failure. Transitions payment to {@code FAILED}
+     * and writes the {@code REFUND_FAILED} event.
+     */
     @Transactional
     public void refundPhaseTwoFailure(Payment payment, GatewayException ex, UUID idempotencyKey) {
         payment.setStatus(PaymentStatus.FAILED);
@@ -218,6 +254,10 @@ public class PaymentTransactionService {
         saveEvent(payment.getId(), idempotencyKey, PaymentEventType.REFUND_FAILED);
     }
 
+    /**
+     * Writes a {@link PaymentEvent} row for the given payment. Called in every phase
+     * of every operation — extracted to avoid duplication across 12 phase methods.
+     */
     private void saveEvent(UUID paymentId, UUID idempotencyKey, PaymentEventType eventType) {
         PaymentEvent event = new PaymentEvent();
         event.setPaymentId(paymentId);
