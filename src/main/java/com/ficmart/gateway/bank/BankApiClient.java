@@ -3,6 +3,7 @@ package com.ficmart.gateway.bank;
 import java.io.IOException;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.stereotype.Component;
@@ -20,6 +21,10 @@ public class BankApiClient implements BankClient {
         this.restClient = RestClient.builder()
             .baseUrl(baseUrl)
             .defaultHeader("Content-Type", "application/json")
+            .messageConverters(converters -> {
+                converters.clear();
+                converters.add(new MappingJackson2HttpMessageConverter(objectMapper));
+            })
             .defaultStatusHandler(status -> status.isError(), 
                 (request, response) -> handleError(objectMapper, response))
             .build();
@@ -48,6 +53,7 @@ public class BankApiClient implements BankClient {
 
     @Override
     public BankAuthorizationResponse authorize(BankAuthorizeRequest request, String idempotencyKey) {
+        System.out.println("Sending to bank: " + request);
         return restClient.post()
             .uri("/api/v1/authorizations")
             .header("Idempotency-Key", idempotencyKey)

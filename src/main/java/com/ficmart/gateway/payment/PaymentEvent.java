@@ -5,6 +5,10 @@ import java.time.Instant;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.Getter;
@@ -19,6 +23,7 @@ import lombok.Setter;
 public class PaymentEvent {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(name = "payment_id", nullable = false)
@@ -27,10 +32,11 @@ public class PaymentEvent {
     @Column(name = "idempotency_key", nullable = false)
     private UUID idempotencyKey;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "event_type", nullable = false)
-    private String eventType;
+    private PaymentEventType eventType;
     
-    @Column(name = "detail", columnDefinition = "jsonb")
+    @Column(name = "detail", columnDefinition = "text")
     private String detail;
 
     @Column(name = "created_at", nullable =  false)

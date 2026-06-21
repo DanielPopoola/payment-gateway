@@ -3,8 +3,11 @@ package com.ficmart.gateway.idempotency;
 import java.time.Instant;
 import java.util.UUID;
 
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.Getter;
@@ -19,6 +22,7 @@ import lombok.Setter;
 public class IdempotencyKey {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(name = "idempotency_key", nullable = false)
@@ -42,7 +46,7 @@ public class IdempotencyKey {
     @Column(name = "response_code")
     private Integer responseCode;
 
-    @Column(name = "response_body", columnDefinition = "jsonb")
+    @Column(name = "response_body", columnDefinition = "text")
     private String responseBody;
 
     @Column(name = "created_at", nullable = false)
