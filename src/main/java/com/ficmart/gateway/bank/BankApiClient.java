@@ -53,7 +53,6 @@ public class BankApiClient implements BankClient {
 
     @Override
     public BankAuthorizationResponse authorize(BankAuthorizeRequest request, String idempotencyKey) {
-        System.out.println("Sending to bank: " + request);
         return restClient.post()
             .uri("/api/v1/authorizations")
             .header("Idempotency-Key", idempotencyKey)

@@ -1,12 +1,11 @@
 package com.ficmart.gateway.payment;
 
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -25,17 +24,20 @@ public class PaymentService {
     private final BankClient bankClient;
     private final ObjectMapper objectMapper;
     private final PaymentRepository paymentRepository;
+    private final PaymentEventRepository paymentEventRepository;
 
     public PaymentService(PaymentTransactionService transactionService,
             IdempotencyKeyService idempotencyKeyService,
             BankClient bankClient,
             ObjectMapper objectMapper,
-            PaymentRepository paymentRepository) {
+            PaymentRepository paymentRepository,
+            PaymentEventRepository paymentEventRepository) {
         this.transactionService = transactionService;
         this.idempotencyKeyService = idempotencyKeyService;
         this.bankClient = bankClient;
         this.objectMapper = objectMapper;
         this.paymentRepository = paymentRepository;
+        this.paymentEventRepository = paymentEventRepository;
     }
 
     public Payment authorize(AuthorizeRequest request, UUID idempotencyKey) {
@@ -160,6 +162,26 @@ public class PaymentService {
             idempotencyKeyService.unlock(idempotencyKeyEntity, ex.getStatus().value(), ex.getMessage());
             throw ex;
         }
+    }
+
+    public Payment getPayment(UUID paymentId) {
+        Payment payment = paymentRepository.findById(paymentId)
+            .orElseThrow(() -> new GatewayException("Payment not found", 
+                HttpStatus.NOT_FOUND, "payment_not_found", null));
+
+        return payment;
+    }
+
+    public List<Payment> getPaymentByOrderId(String orderId) {
+        return paymentRepository.findByOrderId(orderId);   
+    }
+
+    public List<Payment> getPaymentByCustomerId(Long customerId) {
+        return paymentRepository.findByCustomerId(customerId, PageRequest.of(0, 20));
+    }
+
+    public List<PaymentEvent> getPaymentEvents(UUID paymenetId) {
+        return paymentEventRepository.findByPaymentIdOrderByCreatedAtAsc(paymenetId);
     }
 
     private static String hashRequest(Object... fields) {
