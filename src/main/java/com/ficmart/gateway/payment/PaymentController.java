@@ -19,6 +19,19 @@ import com.ficmart.gateway.common.GatewayException;
 
 import jakarta.validation.Valid;
 
+/**
+ * REST controller exposing the gateway's payment operations to FicMart.
+ *
+ * <p>All mutating endpoints require an {@code Idempotency-Key: <UUID>} header.
+ * The controller is intentionally thin — no business logic lives here.
+ * Every call is delegated directly to {@link PaymentService}.
+ *
+ * <p>Responses always use the standardized {@link com.ficmart.gateway.common.ApiResponse} envelope:
+ * <pre>
+ * Success: { "success": true,  "message": "OK", "data": { ... } }
+ * Error:   { "success": false, "message": "...", "error": { "code": "...", "details": ... } }
+ * </pre>
+ */
 @RestController
 @RequestMapping("/payments")
 public class PaymentController {

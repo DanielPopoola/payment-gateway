@@ -10,6 +10,22 @@ import org.springframework.transaction.annotation.Transactional;
 import com.ficmart.gateway.bank.*;
 import com.ficmart.gateway.common.GatewayException;
 
+/**
+ * Owns the two-phase atomic transaction pattern for all payment operations.
+ *
+ * <p>Each operation is split into two separate {@link Transactional} methods with the
+ * bank call happening between them in {@link PaymentService}. This ensures no database
+ * connection is held open across the network call to the bank.
+ *
+ * <p>Phase 1 commits intent to the database before touching the bank.
+ * Phase 2 commits the bank's response after it returns.
+ * If the gateway crashes between phases, the {@link com.ficmart.gateway.idempotency.ReconciliationWorker}
+ * detects the intermediate status and replays the bank call idempotently.
+ *
+ * <p>Capture, void, and refund phase 1 methods use {@code SELECT FOR UPDATE} via
+ * {@link PaymentRepository#findByIdForUpdate} to prevent competing operations
+ * (e.g. simultaneous capture and void) from both proceeding on the same payment.
+ */
 @Service
 public class PaymentTransactionService {
 
@@ -21,6 +37,12 @@ public class PaymentTransactionService {
         this.paymentEventRepository = paymentEventRepository;
     }
 
+    /**
+     * Phase 1 of authorize. Creates the payment row in {@code PENDING} status and writes
+     * the {@code AUTHORIZATION_REQUESTED} event. No bank call has been made yet.
+     *
+     * <p>Note: no {@code SELECT FOR UPDATE} here — the payment row does not exist yet.
+     */
     @Transactional
     public Payment authorizePhaseOne(AuthorizeRequest request, UUID idempotencyKey) {
         UUID paymentId = UUID.randomUUID();
@@ -42,6 +64,10 @@ public class PaymentTransactionService {
         return payment;
     }
 
+    /**
+     * Phase 2 of authorize on bank success. Transitions payment to {@code AUTHORIZED},
+     * stores the bank authorization ID and expiry, and writes the {@code AUTHORIZATION_SUCCEEDED} event.
+     */
     @Transactional
     public Payment authorizePhaseTwoSuccess(Payment payment, BankAuthorizationResponse bankResponse, UUID idempotencyKey) {
         payment.setStatus(PaymentStatus.AUTHORIZED);
@@ -56,6 +82,10 @@ public class PaymentTransactionService {
         return payment;
     }
 
+    /**
+     * Phase 2 of authorize on permanent bank failure. Transitions payment to {@code FAILED}
+     * and writes the {@code AUTHORIZATION_FAILED} event.
+     */
     @Transactional
     public void authorizePhaseTwoFailure(Payment payment, GatewayException ex, UUID idempotencyKey) {
         payment.setStatus(PaymentStatus.FAILED);
@@ -66,6 +96,14 @@ public class PaymentTransactionService {
         saveEvent(payment.getId(), idempotencyKey, PaymentEventType.AUTHORIZATION_FAILED);
     }
 
+    /**
+     * Phase 1 of capture. Loads the payment with a pessimistic lock ({@code SELECT FOR UPDATE}),
+     * validates the state machine transition to {@code CAPTURING}, and writes the
+     * {@code CAPTURE_REQUESTED} event. The lock is released when this transaction commits.
+     *
+     * <p>The {@code CAPTURING} intermediate status serves two purposes:
+     * blocks competing void operations and signals the reconciliation worker on crash recovery.
+     */
     @Transactional
     public Payment capturePhaseOne(UUID paymentId, UUID idempotencyKey) {
         Payment payment = paymentRepository.findByIdForUpdate(paymentId)

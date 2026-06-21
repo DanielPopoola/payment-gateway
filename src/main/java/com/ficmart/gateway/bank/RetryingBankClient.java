@@ -11,6 +11,19 @@ import org.springframework.stereotype.Component;
 
 import com.ficmart.gateway.common.GatewayException;
 
+/**
+ * Decorator around {@link BankClient} that adds exponential backoff with jitter on transient failures.
+ *
+ * <p>Retry policy:
+ * <ul>
+ *   <li>Retries on 5xx responses and {@link IOException} (transient failures)</li>
+ *   <li>Fails fast on 4xx responses (permanent bank rejections)</li>
+ *   <li>Backoff formula: {@code baseDelay * 2^attempt + random(0, baseDelay)}</li>
+ * </ul>
+ *
+ * <p>Registered as {@code @Primary} so all injection points receive the retrying version.
+ * {@link BankApiClient} is injected via {@code @Qualifier} to avoid circular dependency.
+ */
 @Primary
 @Component
 public class RetryingBankClient implements BankClient {
@@ -48,6 +61,14 @@ public class RetryingBankClient implements BankClient {
         return withRetry(() -> delegate.refund(request, idempotencyKey));
     }
 
+    /**
+     * Executes the given bank operation with retry logic.
+     *
+     * @param operation a supplier wrapping the bank call to execute
+     * @param <T> the response type
+     * @return the bank response on success
+     * @throws GatewayException immediately on 4xx, or after exhausting retries on 5xx
+     */
     private <T> T withRetry(Supplier<T> operation) {
         int attempt = 0;
         while (true) {
@@ -62,7 +83,13 @@ public class RetryingBankClient implements BankClient {
             }
         }
     }
-    
+
+    /**
+     * Sleeps for an exponentially increasing duration with random jitter to avoid
+     * thundering herd when multiple gateway instances retry simultaneously.
+     *
+     * @param attempt zero-based attempt index
+     */
     private void sleepWithBackoff(int attempt) {
         try {
             long jitterMillis = (long) (Math.random() * baseDelay.toMillis());

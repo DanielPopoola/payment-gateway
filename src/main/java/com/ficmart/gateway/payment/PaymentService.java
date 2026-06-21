@@ -15,7 +15,19 @@ import com.ficmart.gateway.bank.*;
 import com.ficmart.gateway.common.GatewayException;
 import com.ficmart.gateway.idempotency.*;
 
-
+/**
+ * Orchestrates the full lifecycle of payment operations.
+ *
+ * <p>This service contains no database logic — it delegates persistence to
+ * {@link PaymentTransactionService} and idempotency management to {@link IdempotencyKeyService}.
+ * Its sole responsibility is sequencing: check idempotency → phase 1 → bank call → phase 2.
+ *
+ * <p>The two-transaction design is enforced here: {@code transactionService.phaseOne(...)} commits
+ * before the bank call, and {@code transactionService.phaseTwoSuccess/Failure(...)} commits after.
+ * {@link org.springframework.transaction.annotation.Transactional} is intentionally absent from
+ * this class — wrapping everything in one transaction would hold the DB connection open across
+ * the bank HTTP call.
+ */
 @Service
 public class PaymentService {
 
@@ -40,6 +52,16 @@ public class PaymentService {
         this.paymentEventRepository = paymentEventRepository;
     }
 
+     /**
+     * Authorizes a payment by reserving funds on the provided card.
+     *
+     * <p>Creates a new {@link Payment} row. Unlike capture/void/refund, authorize does not
+     * use {@code SELECT FOR UPDATE} because the payment row does not exist yet.
+     *
+     * @param request the card details and amount from FicMart
+     * @param idempotencyKey client-provided UUID for deduplication
+     * @return the authorized payment receipt
+     */
     public Payment authorize(AuthorizeRequest request, UUID idempotencyKey) {
         String requestHash = hashRequest(request.cardNumber(), request.amountCents(), 
             request.orderId(), request.customerId());
@@ -72,6 +94,13 @@ public class PaymentService {
         }
     }
 
+    /**
+     * Captures a previously authorized payment, charging the reserved funds.
+     *
+     * <p>Loads the payment first (without lock) to retrieve {@code customerId} for the
+     * idempotency check, then re-loads with {@code SELECT FOR UPDATE} inside phase 1
+     * to block concurrent void operations.
+     */
     public Payment capture(UUID paymentId, UUID idempotencyKey) {
         Payment payment = paymentRepository.findById(paymentId)
             .orElseThrow(() -> new GatewayException("Payment not found", 
@@ -103,6 +132,10 @@ public class PaymentService {
         }
     }
 
+    /**
+     * Voids a previously authorized payment, releasing the reserved funds.
+     * Cannot be called after capture.
+     */
     public Payment void_(UUID paymentId, UUID idempotencyKey) {
         Payment payment = paymentRepository.findById(paymentId)
             .orElseThrow(() -> new GatewayException("Payment not found", 
@@ -133,6 +166,11 @@ public class PaymentService {
         }
     }
 
+
+    /**
+     * Refunds a captured payment, returning funds to the customer.
+     * Cannot be called before capture.
+     */
     public Payment refund(UUID paymentId, UUID idempotencyKey) {
         Payment payment = paymentRepository.findById(paymentId)
             .orElseThrow(() -> new GatewayException("Payment not found", 
@@ -184,6 +222,13 @@ public class PaymentService {
         return paymentEventRepository.findByPaymentIdOrderByCreatedAtAsc(paymenetId);
     }
 
+    /**
+     * Computes a SHA-256 hash of the request fields, used to detect idempotency key reuse
+     * with a different payload (client bug).
+     *
+     * @param fields the request fields to hash, joined with "|" separator
+     * @return Base64-encoded SHA-256 digest
+     */
     private static String hashRequest(Object... fields) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
