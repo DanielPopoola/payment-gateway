@@ -202,7 +202,7 @@ public class PaymentTransactionService {
     public Payment capturePhaseTwoSuccess(Payment payment, BankCaptureResponse bankResponse, UUID idempotencyKey) {
         payment.setStatus(PaymentStatus.CAPTURED);
         payment.setBankCaptureId(bankResponse.captureId());
-        payment.setCaptureAt(bankResponse.capturedAt());
+        payment.setCapturedAt(bankResponse.capturedAt());
         payment.setUpdatedAt(Instant.now());
         paymentRepository.save(payment);
 

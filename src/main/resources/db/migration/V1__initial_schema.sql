@@ -35,8 +35,8 @@ CREATE TABLE IF NOT EXISTS idempotency_keys (
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS idempotency_keys_customer_idempotency_key
-    ON idempotency_keys (customer_id, idempotency_key);
+CREATE UNIQUE INDEX IF NOT EXISTS idempotency_keys_idempotency_key
+    ON idempotency_keys(idempotency_key);
 
 CREATE TABLE IF NOT EXISTS payment_events (
     id               BIGSERIAL PRIMARY KEY,

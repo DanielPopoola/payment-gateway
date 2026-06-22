@@ -62,7 +62,7 @@ public class Payment {
     private Instant authorizedAt;
 
     @Column(name = "captured_at")
-    private Instant captureAt;
+    private Instant capturedAt;
 
     @Column(name = "voided_at")
     private Instant voidedAt;
