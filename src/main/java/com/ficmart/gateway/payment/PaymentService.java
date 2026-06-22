@@ -74,8 +74,7 @@ public class PaymentService {
         String requestHash = hashRequest(request.cardNumber(), request.amountCents(),
             request.orderId(), request.customerId());
 
-        Payment replay = idempotencyKeyService.checkAndReplay(
-            request.customerId(), idempotencyKey, requestHash);
+        Payment replay = idempotencyKeyService.checkAndReplay(idempotencyKey, requestHash);
         if (replay != null) return replay;
 
         Payment payment = transactionService.authorizePhaseOne(request, idempotencyKey, requestHash);
@@ -102,26 +101,19 @@ public class PaymentService {
     /**
      * Captures a previously authorized payment, charging the reserved funds.
      *
-     * <p>Pre-fetches the payment (without lock) to retrieve {@code customerId} for the
-     * idempotency check. Phase 1 then re-loads the payment with {@code SELECT FOR UPDATE}
+     * <p>Checks idempotency lock first then Phase 1 then re-loads the 
+     * payment with {@code SELECT FOR UPDATE}
      * to block concurrent void operations.
      */
     public Payment capture(UUID paymentId, UUID idempotencyKey) {
-        Payment payment = paymentRepository.findById(paymentId)
-            .orElseThrow(() -> new GatewayException("Payment not found",
-                HttpStatus.NOT_FOUND, "payment_not_found", null));
-
         String requestHash = hashRequest(paymentId);
 
-        Payment replay = idempotencyKeyService.checkAndReplay(
-            payment.getCustomerId(), idempotencyKey, requestHash);
+        Payment replay = idempotencyKeyService.checkAndReplay(idempotencyKey, requestHash);
         if (replay != null) return replay;
 
-        Payment lockedPayment = transactionService.capturePhaseOne(
-            paymentId, idempotencyKey, payment.getCustomerId(), requestHash);
+        Payment lockedPayment = transactionService.capturePhaseOne(paymentId, idempotencyKey, requestHash);
 
-        IdempotencyKey idempotencyKeyEntity = idempotencyRepository
-            .findByCustomerIdAndIdempotencyKey(payment.getCustomerId(), idempotencyKey);
+        IdempotencyKey idempotencyKeyEntity = idempotencyRepository.findByIdempotencyKey(idempotencyKey);
 
         try {
             BankCaptureResponse bankResponse = bankClient.capture(
@@ -143,21 +135,15 @@ public class PaymentService {
      * Cannot be called after capture — the state machine enforces this in phase 1.
      */
     public Payment void_(UUID paymentId, UUID idempotencyKey) {
-        Payment payment = paymentRepository.findById(paymentId)
-            .orElseThrow(() -> new GatewayException("Payment not found",
-                HttpStatus.NOT_FOUND, "payment_not_found", null));
-
         String requestHash = hashRequest(paymentId);
 
-        Payment replay = idempotencyKeyService.checkAndReplay(
-            payment.getCustomerId(), idempotencyKey, requestHash);
+        Payment replay = idempotencyKeyService.checkAndReplay(idempotencyKey, requestHash);
         if (replay != null) return replay;
 
         Payment lockedPayment = transactionService.voidPhaseOne(
-            paymentId, idempotencyKey, payment.getCustomerId(), requestHash);
+            paymentId, idempotencyKey, requestHash);
 
-        IdempotencyKey idempotencyKeyEntity = idempotencyRepository
-            .findByCustomerIdAndIdempotencyKey(payment.getCustomerId(), idempotencyKey);
+        IdempotencyKey idempotencyKeyEntity = idempotencyRepository.findByIdempotencyKey(idempotencyKey);
 
         try {
             BankVoidResponse bankResponse = bankClient.void_(
@@ -179,21 +165,14 @@ public class PaymentService {
      * Cannot be called before capture — the state machine enforces this in phase 1.
      */
     public Payment refund(UUID paymentId, UUID idempotencyKey) {
-        Payment payment = paymentRepository.findById(paymentId)
-            .orElseThrow(() -> new GatewayException("Payment not found",
-                HttpStatus.NOT_FOUND, "payment_not_found", null));
-
         String requestHash = hashRequest(paymentId);
 
-        Payment replay = idempotencyKeyService.checkAndReplay(
-            payment.getCustomerId(), idempotencyKey, requestHash);
+        Payment replay = idempotencyKeyService.checkAndReplay(idempotencyKey, requestHash);
         if (replay != null) return replay;
 
-        Payment lockedPayment = transactionService.refundPhaseOne(
-            paymentId, idempotencyKey, payment.getCustomerId(), requestHash);
+        Payment lockedPayment = transactionService.refundPhaseOne(paymentId, idempotencyKey, requestHash);
 
-        IdempotencyKey idempotencyKeyEntity = idempotencyRepository
-            .findByCustomerIdAndIdempotencyKey(payment.getCustomerId(), idempotencyKey);
+        IdempotencyKey idempotencyKeyEntity = idempotencyRepository.findByIdempotencyKey(idempotencyKey);
 
         try {
             BankRefundResponse bankResponse = bankClient.refund(

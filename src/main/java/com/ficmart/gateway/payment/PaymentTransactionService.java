@@ -97,7 +97,7 @@ public class PaymentTransactionService {
         payment.setUpdatedAt(now);
         paymentRepository.save(payment);
 
-        idempotencyKeyService.lock(request.customerId(), idempotencyKey, paymentId, requestHash);
+        idempotencyKeyService.lock(idempotencyKey, paymentId, requestHash);
 
         saveEvent(paymentId, idempotencyKey, PaymentEventType.AUTHORIZATION_REQUESTED);
 
@@ -170,8 +170,7 @@ public class PaymentTransactionService {
      * @param requestHash SHA-256 of the payment ID, stored for hash mismatch detection
      */
     @Transactional
-    public Payment capturePhaseOne(UUID paymentId, UUID idempotencyKey,
-            Long customerId, String requestHash) {
+    public Payment capturePhaseOne(UUID paymentId, UUID idempotencyKey, String requestHash) {
         Payment payment = paymentRepository.findByIdForUpdate(paymentId)
             .orElseThrow(() -> new GatewayException("Payment not found",
                 HttpStatus.NOT_FOUND, "payment_not_found", null));
@@ -180,7 +179,7 @@ public class PaymentTransactionService {
         payment.setUpdatedAt(Instant.now());
         paymentRepository.save(payment);
 
-        idempotencyKeyService.lock(customerId, idempotencyKey, paymentId, requestHash);
+        idempotencyKeyService.lock(idempotencyKey, paymentId, requestHash);
 
         saveEvent(payment.getId(), idempotencyKey, PaymentEventType.CAPTURE_REQUESTED);
 
@@ -246,8 +245,7 @@ public class PaymentTransactionService {
      */
 
     @Transactional
-    public Payment voidPhaseOne(UUID paymentId, UUID idempotencyKey,
-            Long customerId, String requestHash) {
+    public Payment voidPhaseOne(UUID paymentId, UUID idempotencyKey, String requestHash) {
         Payment payment = paymentRepository.findByIdForUpdate(paymentId)
             .orElseThrow(() -> new GatewayException("Payment not found",
                 HttpStatus.NOT_FOUND, "payment_not_found", null));
@@ -256,7 +254,7 @@ public class PaymentTransactionService {
         payment.setUpdatedAt(Instant.now());
         paymentRepository.save(payment);
 
-        idempotencyKeyService.lock(customerId, idempotencyKey, paymentId, requestHash);
+        idempotencyKeyService.lock(idempotencyKey, paymentId, requestHash);
 
         saveEvent(payment.getId(), idempotencyKey, PaymentEventType.VOID_REQUESTED);
 
@@ -321,8 +319,7 @@ public class PaymentTransactionService {
      * to replay the refund on crash recovery.
      */
     @Transactional
-    public Payment refundPhaseOne(UUID paymentId, UUID idempotencyKey,
-            Long customerId, String requestHash) {
+    public Payment refundPhaseOne(UUID paymentId, UUID idempotencyKey, String requestHash) {
         Payment payment = paymentRepository.findByIdForUpdate(paymentId)
             .orElseThrow(() -> new GatewayException("Payment not found",
                 HttpStatus.NOT_FOUND, "payment_not_found", null));
@@ -331,7 +328,7 @@ public class PaymentTransactionService {
         payment.setUpdatedAt(Instant.now());
         paymentRepository.save(payment);
 
-        idempotencyKeyService.lock(customerId, idempotencyKey, paymentId, requestHash);
+        idempotencyKeyService.lock(idempotencyKey, paymentId, requestHash);
 
         saveEvent(payment.getId(), idempotencyKey, PaymentEventType.REFUND_REQUESTED);
 

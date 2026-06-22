@@ -46,9 +46,8 @@ public class IdempotencyKeyService {
      * @return the stored {@link Payment} on replay, or {@code null} to proceed with a new request
      * @throws GatewayException on conflict or hash mismatch
      */
-    public Payment checkAndReplay(Long customerId, UUID idempotencyKey, String requestHash) {
-        IdempotencyKey existing = idempotencyRepository
-            .findByCustomerIdAndIdempotencyKey(customerId, idempotencyKey);
+    public Payment checkAndReplay(UUID idempotencyKey, String requestHash) {
+        IdempotencyKey existing = idempotencyRepository.findByIdempotencyKey(idempotencyKey);
 
         if (existing == null) {
             return null; // proceed
@@ -77,11 +76,10 @@ public class IdempotencyKeyService {
      *
      * @return the saved entity, needed by the caller to pass to {@link #unlock}
      */
-    public IdempotencyKey lock(Long customerId, UUID idempotencyKey, UUID paymentId, String requestHash) {
+    public IdempotencyKey lock(UUID idempotencyKey, UUID paymentId, String requestHash) {
         Instant now = Instant.now();
         IdempotencyKey entity = new IdempotencyKey();
         entity.setIdempotencyKey(idempotencyKey);
-        entity.setCustomerId(customerId);
         entity.setPaymentId(paymentId);
         entity.setRequestHash(requestHash);
         entity.setLockedAt(now);
