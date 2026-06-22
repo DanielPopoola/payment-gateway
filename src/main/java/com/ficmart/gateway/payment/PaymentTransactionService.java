@@ -15,6 +15,7 @@ import com.ficmart.gateway.bank.BankVoidResponse;
 import com.ficmart.gateway.common.GatewayException;
 import com.ficmart.gateway.idempotency.IdempotencyKey;
 import com.ficmart.gateway.idempotency.IdempotencyKeyService;
+import com.ficmart.gateway.idempotency.IdempotencyRepository;
 
 /**
  * Owns the two-phase atomic transaction pattern for all four payment operations.
@@ -52,15 +53,18 @@ public class PaymentTransactionService {
     private final PaymentRepository paymentRepository;
     private final PaymentEventRepository paymentEventRepository;
     private final IdempotencyKeyService idempotencyKeyService;
+    private final IdempotencyRepository idempotencyRepository;
     
 
     public PaymentTransactionService(PaymentRepository paymentRepository,
             PaymentEventRepository paymentEventRepository,
             IdempotencyKeyService idempotencyKeyService,
+            IdempotencyRepository idempotencyRepository,
             ObjectMapper objectMapper) {
         this.paymentRepository = paymentRepository;
         this.paymentEventRepository = paymentEventRepository;
         this.idempotencyKeyService = idempotencyKeyService;
+        this.idempotencyRepository = idempotencyRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -113,8 +117,7 @@ public class PaymentTransactionService {
      * </ul>
      */
     @Transactional
-    public Payment authorizePhaseTwoSuccess(Payment payment, IdempotencyKey idempotencyKeyEntity,
-            BankAuthorizationResponse bankResponse, UUID idempotencyKey) {
+    public Payment authorizePhaseTwoSuccess(Payment payment, BankAuthorizationResponse bankResponse, UUID idempotencyKey) {
         payment.setStatus(PaymentStatus.AUTHORIZED);
         payment.setBankAuthId(bankResponse.authorizationId());
         payment.setExpiresAt(bankResponse.expiresAt());
@@ -122,6 +125,7 @@ public class PaymentTransactionService {
         payment.setUpdatedAt(Instant.now());
         paymentRepository.save(payment);
 
+        IdempotencyKey idempotencyKeyEntity = idempotencyRepository.findByIdempotencyKey(idempotencyKey);
         idempotencyKeyService.unlock(idempotencyKeyEntity, 200, serialize(payment));
 
         saveEvent(payment.getId(), idempotencyKey, PaymentEventType.AUTHORIZATION_SUCCEEDED);
@@ -138,13 +142,13 @@ public class PaymentTransactionService {
      * </ul>
      */
     @Transactional
-    public void authorizePhaseTwoFailure(Payment payment, IdempotencyKey idempotencyKeyEntity,
-            GatewayException ex, UUID idempotencyKey) {
+    public void authorizePhaseTwoFailure(Payment payment, GatewayException ex, UUID idempotencyKey) {
         payment.setStatus(PaymentStatus.FAILED);
         payment.setFailedAt(Instant.now());
         payment.setUpdatedAt(Instant.now());
         paymentRepository.save(payment);
 
+        IdempotencyKey idempotencyKeyEntity = idempotencyRepository.findByIdempotencyKey(idempotencyKey);
         idempotencyKeyService.unlock(idempotencyKeyEntity, ex.getStatus().value(), ex.getMessage());
 
         saveEvent(payment.getId(), idempotencyKey, PaymentEventType.AUTHORIZATION_FAILED);
@@ -195,14 +199,14 @@ public class PaymentTransactionService {
      * </ul>
      */
     @Transactional
-    public Payment capturePhaseTwoSuccess(Payment payment, IdempotencyKey idempotencyKeyEntity,
-            BankCaptureResponse bankResponse, UUID idempotencyKey) {
+    public Payment capturePhaseTwoSuccess(Payment payment, BankCaptureResponse bankResponse, UUID idempotencyKey) {
         payment.setStatus(PaymentStatus.CAPTURED);
         payment.setBankCaptureId(bankResponse.captureId());
         payment.setCaptureAt(bankResponse.capturedAt());
         payment.setUpdatedAt(Instant.now());
         paymentRepository.save(payment);
 
+        IdempotencyKey idempotencyKeyEntity = idempotencyRepository.findByIdempotencyKey(idempotencyKey);
         idempotencyKeyService.unlock(idempotencyKeyEntity, 200, serialize(payment));
 
         saveEvent(payment.getId(), idempotencyKey, PaymentEventType.CAPTURE_SUCCEEDED);
@@ -219,13 +223,13 @@ public class PaymentTransactionService {
      * </ul>
      */
     @Transactional
-    public void capturePhaseTwoFailure(Payment payment, IdempotencyKey idempotencyKeyEntity,
-            GatewayException ex, UUID idempotencyKey) {
+    public void capturePhaseTwoFailure(Payment payment, GatewayException ex, UUID idempotencyKey) {
         payment.setStatus(PaymentStatus.FAILED);
         payment.setFailedAt(Instant.now());
         payment.setUpdatedAt(Instant.now());
         paymentRepository.save(payment);
 
+        IdempotencyKey idempotencyKeyEntity = idempotencyRepository.findByIdempotencyKey(idempotencyKey);
         idempotencyKeyService.unlock(idempotencyKeyEntity, ex.getStatus().value(), ex.getMessage());
 
         saveEvent(payment.getId(), idempotencyKey, PaymentEventType.CAPTURE_FAILED);
@@ -270,14 +274,14 @@ public class PaymentTransactionService {
      * </ul>
      */
     @Transactional
-    public Payment voidPhaseTwoSuccess(Payment payment, IdempotencyKey idempotencyKeyEntity,
-            BankVoidResponse bankResponse, UUID idempotencyKey) {
+    public Payment voidPhaseTwoSuccess(Payment payment, BankVoidResponse bankResponse, UUID idempotencyKey) {
         payment.setStatus(PaymentStatus.VOIDED);
         payment.setBankVoidId(bankResponse.voidId());
         payment.setVoidedAt(bankResponse.voidedAt());
         payment.setUpdatedAt(Instant.now());
         paymentRepository.save(payment);
 
+        IdempotencyKey idempotencyKeyEntity = idempotencyRepository.findByIdempotencyKey(idempotencyKey);
         idempotencyKeyService.unlock(idempotencyKeyEntity, 200, serialize(payment));
 
         saveEvent(payment.getId(), idempotencyKey, PaymentEventType.VOID_SUCCEEDED);
@@ -294,13 +298,13 @@ public class PaymentTransactionService {
      * </ul>
      */
     @Transactional
-    public void voidPhaseTwoFailure(Payment payment, IdempotencyKey idempotencyKeyEntity,
-            GatewayException ex, UUID idempotencyKey) {
+    public void voidPhaseTwoFailure(Payment payment, GatewayException ex, UUID idempotencyKey) {
         payment.setStatus(PaymentStatus.FAILED);
         payment.setFailedAt(Instant.now());
         payment.setUpdatedAt(Instant.now());
         paymentRepository.save(payment);
 
+        IdempotencyKey idempotencyKeyEntity = idempotencyRepository.findByIdempotencyKey(idempotencyKey);
         idempotencyKeyService.unlock(idempotencyKeyEntity, ex.getStatus().value(), ex.getMessage());
 
         saveEvent(payment.getId(), idempotencyKey, PaymentEventType.VOID_FAILED);
@@ -344,14 +348,14 @@ public class PaymentTransactionService {
      * </ul>
      */
     @Transactional
-    public Payment refundPhaseTwoSuccess(Payment payment, IdempotencyKey idempotencyKeyEntity,
-            BankRefundResponse bankResponse, UUID idempotencyKey) {
+    public Payment refundPhaseTwoSuccess(Payment payment, BankRefundResponse bankResponse, UUID idempotencyKey) {
         payment.setStatus(PaymentStatus.REFUNDED);
         payment.setBankRefundId(bankResponse.refundId());
         payment.setRefundedAt(bankResponse.refundedAt());
         payment.setUpdatedAt(Instant.now());
         paymentRepository.save(payment);
 
+        IdempotencyKey idempotencyKeyEntity = idempotencyRepository.findByIdempotencyKey(idempotencyKey);
         idempotencyKeyService.unlock(idempotencyKeyEntity, 200, serialize(payment));
 
         saveEvent(payment.getId(), idempotencyKey, PaymentEventType.REFUND_SUCCEEDED);
@@ -368,13 +372,13 @@ public class PaymentTransactionService {
      * </ul>
      */
     @Transactional
-    public void refundPhaseTwoFailure(Payment payment, IdempotencyKey idempotencyKeyEntity,
-            GatewayException ex, UUID idempotencyKey) {
+    public void refundPhaseTwoFailure(Payment payment, GatewayException ex, UUID idempotencyKey) {
         payment.setStatus(PaymentStatus.FAILED);
         payment.setFailedAt(Instant.now());
         payment.setUpdatedAt(Instant.now());
         paymentRepository.save(payment);
 
+        IdempotencyKey idempotencyKeyEntity = idempotencyRepository.findByIdempotencyKey(idempotencyKey);
         idempotencyKeyService.unlock(idempotencyKeyEntity, ex.getStatus().value(), ex.getMessage());
 
         saveEvent(payment.getId(), idempotencyKey, PaymentEventType.REFUND_FAILED);

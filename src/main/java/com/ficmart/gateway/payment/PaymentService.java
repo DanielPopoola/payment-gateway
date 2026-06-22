@@ -10,9 +10,7 @@ import org.springframework.stereotype.Service;
 
 import com.ficmart.gateway.bank.*;
 import com.ficmart.gateway.common.GatewayException;
-import com.ficmart.gateway.idempotency.IdempotencyKey;
 import com.ficmart.gateway.idempotency.IdempotencyKeyService;
-import com.ficmart.gateway.idempotency.IdempotencyRepository;
 
 import org.springframework.data.domain.PageRequest;
 
@@ -40,20 +38,17 @@ public class PaymentService {
 
     private final PaymentTransactionService transactionService;
     private final IdempotencyKeyService idempotencyKeyService;
-    private final IdempotencyRepository idempotencyRepository;
     private final BankClient bankClient;
     private final PaymentRepository paymentRepository;
     private final PaymentEventRepository paymentEventRepository;
 
     public PaymentService(PaymentTransactionService transactionService,
             IdempotencyKeyService idempotencyKeyService,
-            IdempotencyRepository idempotencyRepository,
             BankClient bankClient,
             PaymentRepository paymentRepository,
             PaymentEventRepository paymentEventRepository) {
         this.transactionService = transactionService;
         this.idempotencyKeyService = idempotencyKeyService;
-        this.idempotencyRepository = idempotencyRepository;
         this.bankClient = bankClient;
         this.paymentRepository = paymentRepository;
         this.paymentEventRepository = paymentEventRepository;
@@ -79,21 +74,16 @@ public class PaymentService {
 
         Payment payment = transactionService.authorizePhaseOne(request, idempotencyKey, requestHash);
 
-        IdempotencyKey idempotencyKeyEntity = idempotencyRepository
-            .findByCustomerIdAndIdempotencyKey(request.customerId(), idempotencyKey);
-
         try {
             BankAuthorizationResponse bankResponse = bankClient.authorize(
                 new BankAuthorizeRequest(request.amountCents(), request.cardNumber(),
                     request.cvv(), request.expiryMonth(), request.expiryYear()),
                 idempotencyKey.toString());
 
-            return transactionService.authorizePhaseTwoSuccess(
-                payment, idempotencyKeyEntity, bankResponse, idempotencyKey);
+            return transactionService.authorizePhaseTwoSuccess(payment, bankResponse, idempotencyKey);
 
         } catch (GatewayException ex) {
-            transactionService.authorizePhaseTwoFailure(
-                payment, idempotencyKeyEntity, ex, idempotencyKey);
+            transactionService.authorizePhaseTwoFailure(payment, ex, idempotencyKey);
             throw ex;
         }
     }
@@ -113,19 +103,15 @@ public class PaymentService {
 
         Payment lockedPayment = transactionService.capturePhaseOne(paymentId, idempotencyKey, requestHash);
 
-        IdempotencyKey idempotencyKeyEntity = idempotencyRepository.findByIdempotencyKey(idempotencyKey);
-
         try {
             BankCaptureResponse bankResponse = bankClient.capture(
                 new BankCaptureRequest(lockedPayment.getAmountCents(), lockedPayment.getBankAuthId()),
                 idempotencyKey.toString());
 
-            return transactionService.capturePhaseTwoSuccess(
-                lockedPayment, idempotencyKeyEntity, bankResponse, idempotencyKey);
+            return transactionService.capturePhaseTwoSuccess(lockedPayment, bankResponse, idempotencyKey);
 
         } catch (GatewayException ex) {
-            transactionService.capturePhaseTwoFailure(
-                lockedPayment, idempotencyKeyEntity, ex, idempotencyKey);
+            transactionService.capturePhaseTwoFailure(lockedPayment, ex, idempotencyKey);
             throw ex;
         }
     }
@@ -143,19 +129,15 @@ public class PaymentService {
         Payment lockedPayment = transactionService.voidPhaseOne(
             paymentId, idempotencyKey, requestHash);
 
-        IdempotencyKey idempotencyKeyEntity = idempotencyRepository.findByIdempotencyKey(idempotencyKey);
-
         try {
             BankVoidResponse bankResponse = bankClient.void_(
                 new BankVoidRequest(lockedPayment.getBankAuthId()),
                 idempotencyKey.toString());
 
-            return transactionService.voidPhaseTwoSuccess(
-                lockedPayment, idempotencyKeyEntity, bankResponse, idempotencyKey);
+            return transactionService.voidPhaseTwoSuccess(lockedPayment, bankResponse, idempotencyKey);
 
         } catch (GatewayException ex) {
-            transactionService.voidPhaseTwoFailure(
-                lockedPayment, idempotencyKeyEntity, ex, idempotencyKey);
+            transactionService.voidPhaseTwoFailure(lockedPayment, ex, idempotencyKey);
             throw ex;
         }
     }
@@ -172,19 +154,15 @@ public class PaymentService {
 
         Payment lockedPayment = transactionService.refundPhaseOne(paymentId, idempotencyKey, requestHash);
 
-        IdempotencyKey idempotencyKeyEntity = idempotencyRepository.findByIdempotencyKey(idempotencyKey);
-
         try {
             BankRefundResponse bankResponse = bankClient.refund(
                 new BankRefundRequest(lockedPayment.getAmountCents(), lockedPayment.getBankCaptureId()),
                 idempotencyKey.toString());
 
-            return transactionService.refundPhaseTwoSuccess(
-                lockedPayment, idempotencyKeyEntity, bankResponse, idempotencyKey);
+            return transactionService.refundPhaseTwoSuccess(lockedPayment, bankResponse, idempotencyKey);
 
         } catch (GatewayException ex) {
-            transactionService.refundPhaseTwoFailure(
-                lockedPayment, idempotencyKeyEntity, ex, idempotencyKey);
+            transactionService.refundPhaseTwoFailure(lockedPayment, ex, idempotencyKey);
             throw ex;
         }
     }

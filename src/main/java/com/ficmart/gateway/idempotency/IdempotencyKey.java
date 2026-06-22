@@ -28,9 +28,6 @@ public class IdempotencyKey {
     @Column(name = "idempotency_key", nullable = false)
     private UUID idempotencyKey;
 
-    @Column(name = "customer_id", nullable = false)
-    private Long customerId;
-
     @Column(name = "payment_id")
     private UUID paymentId;
     
