@@ -127,14 +127,11 @@ public class PaymentService {
         Payment replay = idempotencyKeyService.checkAndReplay(idempotencyKey, requestHash);
         if (replay != null) return replay;
 
-        Payment lockedPayment = transactionService.voidPhaseOne(
-            paymentId, idempotencyKey, requestHash);
+        Payment lockedPayment = transactionService.voidPhaseOne(paymentId, idempotencyKey, requestHash);
 
         try {
             BankVoidResponse bankResponse = bankClient.void_(
-                new BankVoidRequest(lockedPayment.getBankAuthId()),
-                idempotencyKey.toString());
-
+                new BankVoidRequest(lockedPayment.getBankAuthId()), idempotencyKey.toString());
             return transactionService.voidPhaseTwoSuccess(lockedPayment, bankResponse, idempotencyKey);
 
         } catch (GatewayException ex) {

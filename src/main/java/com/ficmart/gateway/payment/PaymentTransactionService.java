@@ -37,14 +37,6 @@ import com.ficmart.gateway.idempotency.IdempotencyRepository;
  *   <li>Idempotency key row — {@code locked_at} cleared, response stored for future replay</li>
  *   <li>Payment event — records success or failure</li>
  * </ol>
- *
- * <p>If the gateway crashes between phase 1 and phase 2, the payment row is left in an
- * intermediate status ({@code PENDING}, {@code CAPTURING}, {@code VOIDING}, {@code REFUNDING}).
- * The reconciliation worker detects this and replays the bank call idempotently to resolve it.
- *
- * <p>{@link IdempotencyKeyService#lock} and {@link IdempotencyKeyService#unlock} carry no
- * {@code @Transactional} annotation of their own — they participate in the calling phase
- * method's transaction via Spring's default {@code REQUIRED} propagation.
  */
 @Service
 public class PaymentTransactionService {
@@ -76,9 +68,6 @@ public class PaymentTransactionService {
      *   <li>Inserts the idempotency key row with {@code locked_at} set</li>
      *   <li>Writes the {@code AUTHORIZATION_REQUESTED} event</li>
      * </ul>
-     *
-     * <p>No {@code SELECT FOR UPDATE} here — the payment row does not exist yet,
-     * so there is nothing to lock against competing operations.
      *
      * @param request the authorize request from FicMart
      * @param idempotencyKey client-provided UUID forwarded to the bank
@@ -163,13 +152,6 @@ public class PaymentTransactionService {
      *   <li>Writes the {@code CAPTURE_REQUESTED} event</li>
      * </ul>
      *
-     * <p>The {@code CAPTURING} intermediate status serves two purposes: it blocks a concurrent
-     * void from reading {@code AUTHORIZED} and proceeding, and it signals the reconciliation
-     * worker to replay the capture on crash recovery.
-     *
-     * <p>The {@code SELECT FOR UPDATE} lock is released when this transaction commits —
-     * before the bank call is made.
-     *
      * @param customerId needed to scope the idempotency key correctly
      * @param requestHash SHA-256 of the payment ID, stored for hash mismatch detection
      */
@@ -243,11 +225,7 @@ public class PaymentTransactionService {
      *   <li>Inserts the idempotency key row with {@code locked_at} set</li>
      *   <li>Writes the {@code VOID_REQUESTED} event</li>
      * </ul>
-     *
-     * <p>The {@code VOIDING} intermediate status blocks a concurrent capture from reading
-     * {@code AUTHORIZED} and proceeding, and signals the reconciliation worker on crash recovery.
      */
-
     @Transactional
     public Payment voidPhaseOne(UUID paymentId, UUID idempotencyKey, String requestHash) {
         Payment payment = paymentRepository.findByIdForUpdate(paymentId)
@@ -318,9 +296,6 @@ public class PaymentTransactionService {
      *   <li>Inserts the idempotency key row with {@code locked_at} set</li>
      *   <li>Writes the {@code REFUND_REQUESTED} event</li>
      * </ul>
-     *
-     * <p>The {@code REFUNDING} intermediate status signals the reconciliation worker
-     * to replay the refund on crash recovery.
      */
     @Transactional
     public Payment refundPhaseOne(UUID paymentId, UUID idempotencyKey, String requestHash) {
