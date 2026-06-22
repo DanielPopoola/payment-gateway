@@ -9,4 +9,6 @@ import org.springframework.stereotype.Repository;
 public interface IdempotencyRepository extends JpaRepository<IdempotencyKey, Long> {
     
     IdempotencyKey findByIdempotencyKey(UUID key);    
+
+    IdempotencyKey findByPaymentId(UUID paymentId);
 }

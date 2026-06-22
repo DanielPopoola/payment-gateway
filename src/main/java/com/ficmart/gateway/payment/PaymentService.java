@@ -6,6 +6,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 
 import com.ficmart.gateway.bank.*;
@@ -172,7 +173,7 @@ public class PaymentService {
      *
      * @throws GatewayException 404 if the payment does not exist
      */
-    public Payment getPayment(UUID paymentId) {
+    public Payment getPayment(@NonNull UUID paymentId) {
         return paymentRepository.findById(paymentId)
             .orElseThrow(() -> new GatewayException("Payment not found",
                 HttpStatus.NOT_FOUND, "payment_not_found", null));

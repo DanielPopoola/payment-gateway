@@ -385,6 +385,34 @@ public class PaymentTransactionService {
     }
     
     /**
+     * Marks an authorized payment as EXPIRED after the expiration worker confirms
+     * with the bank that the authorization is no longer valid.
+     *
+     * <p>Atomically:
+     * <ul>
+     *   <li>Transitions payment to {@code EXPIRED}, sets {@code expired_at}</li>
+     *   <li>Writes the {@code AUTHORIZATION_EXPIRED} event</li>
+     * </ul>
+     *
+     * <p>No idempotency key unlock needed — expiration is worker-driven,
+     * not triggered by a client request.
+     */
+    @Transactional
+    public void expirePayment(Payment payment) {
+        payment.setStatus(payment.getStatus().transitionTo(PaymentStatus.EXPIRED));
+        payment.setExpiredAt(Instant.now());
+        payment.setUpdatedAt(Instant.now());
+        paymentRepository.save(payment);
+
+        PaymentEvent event = new PaymentEvent();
+        event.setPaymentId(payment.getId());
+        event.setIdempotencyKey(UUID.randomUUID());
+        event.setEventType(PaymentEventType.AUTHORIZATION_EXPIRED);
+        event.setCreatedAt(Instant.now());
+        paymentEventRepository.save(event);
+    }
+
+    /**
      * Writes a {@link PaymentEvent} row for the given payment. Called once in every phase
      * method — extracted to eliminate duplication across 12 phase methods.
      *

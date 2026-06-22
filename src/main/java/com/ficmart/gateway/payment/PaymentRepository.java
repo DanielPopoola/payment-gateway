@@ -23,4 +23,5 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
     @Query(value = "SELECT * FROM payments WHERE id = :id FOR UPDATE", nativeQuery = true)
     Optional<Payment> findByIdForUpdate(@Param("id") UUID id);
     
+    List<Payment> findByStatusAndExpiresAtBefore(PaymentStatus status, Instant threshold);
 }
