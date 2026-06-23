@@ -3,9 +3,12 @@ package com.ficmart.gateway.idempotency;
 import java.time.Instant;
 import java.util.UUID;
 
+import com.ficmart.gateway.payment.PaymentOperation;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -30,6 +33,10 @@ public class IdempotencyKey {
 
     @Column(name = "payment_id")
     private UUID paymentId;
+
+    @Column(name = "operation", nullable = false)
+    @Enumerated(EnumType.STRING)
+    private PaymentOperation operation;
     
     @Column(name = "request_hash", nullable = false)
     private String requestHash;

@@ -97,7 +97,7 @@ public class PaymentService {
      * to block concurrent void operations.
      */
     public Payment capture(UUID paymentId, UUID idempotencyKey) {
-        String requestHash = hashRequest(paymentId);
+        String requestHash = hashRequest(paymentId, PaymentOperation.CAPTURE);
 
         Payment replay = idempotencyKeyService.checkAndReplay(idempotencyKey, requestHash);
         if (replay != null) return replay;
@@ -122,7 +122,7 @@ public class PaymentService {
      * Cannot be called after capture — the state machine enforces this in phase 1.
      */
     public Payment void_(UUID paymentId, UUID idempotencyKey) {
-        String requestHash = hashRequest(paymentId);
+        String requestHash = hashRequest(paymentId, PaymentOperation.VOID);
 
         Payment replay = idempotencyKeyService.checkAndReplay(idempotencyKey, requestHash);
         if (replay != null) return replay;
@@ -145,7 +145,7 @@ public class PaymentService {
      * Cannot be called before capture — the state machine enforces this in phase 1.
      */
     public Payment refund(UUID paymentId, UUID idempotencyKey) {
-        String requestHash = hashRequest(paymentId);
+        String requestHash = hashRequest(paymentId, PaymentOperation.REFUND);
 
         Payment replay = idempotencyKeyService.checkAndReplay(idempotencyKey, requestHash);
         if (replay != null) return replay;

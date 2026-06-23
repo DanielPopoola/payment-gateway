@@ -31,6 +31,10 @@ Four operations:
 ## Running locally
 
 **Prerequisites:** Java 21, Maven, Docker
+```bash
+# Get bank repo from and follow instructions in README
+https://github.com/benx421/payment-gateway
+
 
 ```bash
 # Start the mock bank

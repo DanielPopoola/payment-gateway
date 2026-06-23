@@ -5,10 +5,12 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import com.ficmart.gateway.payment.PaymentOperation;
+
 @Repository
 public interface IdempotencyRepository extends JpaRepository<IdempotencyKey, Long> {
     
     IdempotencyKey findByIdempotencyKey(UUID key);    
 
-    IdempotencyKey findByPaymentId(UUID paymentId);
+    IdempotencyKey findByPaymentIdAndOperation(UUID paymentId, PaymentOperation operation);
 }

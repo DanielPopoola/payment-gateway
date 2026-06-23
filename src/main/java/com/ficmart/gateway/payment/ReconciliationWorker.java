@@ -76,7 +76,16 @@ public class ReconciliationWorker {
     }
 
     private void recover(Payment payment) {
-        UUID idempotencyKey = idempotencyRepository.findByPaymentId(payment.getId()).getIdempotencyKey();
+        PaymentOperation operation = switch (payment.getStatus()) {
+            case CAPTURING -> PaymentOperation.CAPTURE;
+            case VOIDING   -> PaymentOperation.VOID;
+            case REFUNDING -> PaymentOperation.REFUND;
+            default -> throw new IllegalStateException("Unexpected status: " + payment.getStatus());
+    };
+
+    UUID idempotencyKey = idempotencyRepository
+        .findByPaymentIdAndOperation(payment.getId(), operation)
+        .getIdempotencyKey();
 
         switch (payment.getStatus()) {
             case CAPTURING -> {

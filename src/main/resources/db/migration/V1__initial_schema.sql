@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS idempotency_keys (
     id               BIGSERIAL PRIMARY KEY,
     idempotency_key  UUID NOT NULL,
     payment_id       UUID NULL REFERENCES payments(id),
+    operation        TEXT NOT NULL,
     request_hash     TEXT NOT NULL,
     locked_at        TIMESTAMPTZ DEFAULT now(),
     last_run_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
