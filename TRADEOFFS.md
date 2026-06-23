@@ -7,7 +7,7 @@ I structured it such that each package contains all it's feature concerns. You d
 
 ## State management
 
-I track payment state with the use of the enums in the `PaymentStatus` module. With the help of a statically typed language like Java, invalid transitions are rejected at compile time ensuring that all invalid state transitions are exposed early
+I track payment state with the use of the enums in the `PaymentStatus` module. Invalid transitions are raised at runtime with the error `InvalidTransitionException` via the `transitionTo` method.
 
 
 ## Failure Handling
@@ -18,7 +18,7 @@ For partial failures, I use intermediate states to track intent first, e.g a `CA
 
 ## Idempotency
 
-Well I implemented idempotency in a straightforward way, the idempotency key has it's own table with the idempotencykey, requestHash, response code, and response payload. The requestHash was to prevent cases where different requests were sent to the gateway but with the same idempotency key. The response payload is simply the `Payment` object which is serialized to json for duplicate requests. 
+Well I implemented idempotency in a straightforward way, the idempotency key has it's own table with the idempotencykey, operation, requestHash, response code, and response payload. The requestHash was to prevent cases where different requests were sent to the gateway but with the same idempotency key; the   `operation` was so that I could find a specific idempotency key by it's paymentId because one paymentId could have many idempotency keys; the response payload is simply the `Payment` object which is serialized to json for duplicate requests; then for preventing contrasting requests, I use lock on the database in a transaction, so that one event of a race condition, only one operation suceeds.
 
 
 ## What I'd Do Differently
