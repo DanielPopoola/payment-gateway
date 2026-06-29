@@ -31,7 +31,7 @@ public class Payment {
     private Long customerId;
 
     @Column(name = "amount_cents", nullable = false)
-    private Long amount;
+    private Long amountCents;
 
     @Column(name = "currency", nullable = false)
     private String currency;
@@ -62,7 +62,7 @@ public class Payment {
     private Instant authorizedAt;
 
     @Column(name = "captured_at")
-    private Instant captureAt;
+    private Instant capturedAt;
 
     @Column(name = "voided_at")
     private Instant voidedAt;

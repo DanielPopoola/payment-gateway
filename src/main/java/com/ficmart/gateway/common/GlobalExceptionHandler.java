@@ -8,6 +8,22 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 
+/**
+ * Centralized exception handler for all controllers.
+ *
+ * <p>Catches exceptions thrown anywhere in the application and converts them into
+ * the standardized {@link ApiErrorResponse} envelope. No controller ever hand-builds
+ * error JSON — all error formatting is done here.
+ *
+ * <p>Handled exceptions:
+ * <ul>
+ *   <li>{@link GatewayException} — uses the exception's own status and error code</li>
+ *   <li>{@link InvalidTransitionException} — 409 Conflict, code {@code invalid_transition}</li>
+ *   <li>{@link MethodArgumentNotValidException} — 400 Bad Request, code {@code validation_error},
+ *       field errors included in {@code details}</li>
+ *   <li>{@link Exception} — 500 Internal Server Error, no stack trace leaked to client</li>
+ * </ul>
+ */
 @ControllerAdvice
 public class GlobalExceptionHandler {
 

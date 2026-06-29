@@ -10,6 +10,7 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
+      dialect: org.hibernate.dialect.PostgreSQLDialect
     show-sql: false
     open-in-view: false
 

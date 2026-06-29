@@ -26,24 +26,23 @@ CREATE INDEX IF NOT EXISTS idx_payments_customer_id ON payments(customer_id);
 CREATE TABLE IF NOT EXISTS idempotency_keys (
     id               BIGSERIAL PRIMARY KEY,
     idempotency_key  UUID NOT NULL,
-    customer_id      BIGINT NOT NULL,
     payment_id       UUID NULL REFERENCES payments(id),
     request_hash     TEXT NOT NULL,
     locked_at        TIMESTAMPTZ DEFAULT now(),
     last_run_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     response_code    INT,
-    response_body    JSONB,
+    response_body    TEXT,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS idempotency_keys_customer_idempotency_key
-    ON idempotency_keys (customer_id, idempotency_key);
+CREATE UNIQUE INDEX IF NOT EXISTS idempotency_keys_idempotency_key
+    ON idempotency_keys(idempotency_key);
 
 CREATE TABLE IF NOT EXISTS payment_events (
     id               BIGSERIAL PRIMARY KEY,
     payment_id       UUID NOT NULL REFERENCES payments(id),
     idempotency_key  UUID NOT NULL,
     event_type       TEXT NOT NULL,
-    detail           JSONB,
+    detail           TEXT,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
