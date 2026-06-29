@@ -25,3 +25,11 @@ bank:
   timeout:
     connect-ms: ${BANK_CONNECT_TIMEOUT_MS:3000}
     read-ms: ${BANK_READ_TIMEOUT_MS:5000}
+
+workers:
+  reconciliation:
+    delay-ms: ${RECONCILIATION_DELAY_MS:60000}
+    stuck-threshold-minutes: ${STUCK_THRESHOLD_MINUTES:3}
+  expiration:
+    delay-ms: ${EXPIRATION_DELAY_MS:3600000}
+    buffer-days: ${EXPIRATION_BUFFER_DAYS:1}

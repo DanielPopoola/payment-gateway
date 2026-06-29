@@ -6,6 +6,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 
 import com.ficmart.gateway.bank.*;
@@ -96,7 +97,7 @@ public class PaymentService {
      * to block concurrent void operations.
      */
     public Payment capture(UUID paymentId, UUID idempotencyKey) {
-        String requestHash = hashRequest(paymentId);
+        String requestHash = hashRequest(paymentId, PaymentOperation.CAPTURE);
 
         Payment replay = idempotencyKeyService.checkAndReplay(idempotencyKey, requestHash);
         if (replay != null) return replay;
@@ -121,19 +122,16 @@ public class PaymentService {
      * Cannot be called after capture — the state machine enforces this in phase 1.
      */
     public Payment void_(UUID paymentId, UUID idempotencyKey) {
-        String requestHash = hashRequest(paymentId);
+        String requestHash = hashRequest(paymentId, PaymentOperation.VOID);
 
         Payment replay = idempotencyKeyService.checkAndReplay(idempotencyKey, requestHash);
         if (replay != null) return replay;
 
-        Payment lockedPayment = transactionService.voidPhaseOne(
-            paymentId, idempotencyKey, requestHash);
+        Payment lockedPayment = transactionService.voidPhaseOne(paymentId, idempotencyKey, requestHash);
 
         try {
             BankVoidResponse bankResponse = bankClient.void_(
-                new BankVoidRequest(lockedPayment.getBankAuthId()),
-                idempotencyKey.toString());
-
+                new BankVoidRequest(lockedPayment.getBankAuthId()), idempotencyKey.toString());
             return transactionService.voidPhaseTwoSuccess(lockedPayment, bankResponse, idempotencyKey);
 
         } catch (GatewayException ex) {
@@ -147,7 +145,7 @@ public class PaymentService {
      * Cannot be called before capture — the state machine enforces this in phase 1.
      */
     public Payment refund(UUID paymentId, UUID idempotencyKey) {
-        String requestHash = hashRequest(paymentId);
+        String requestHash = hashRequest(paymentId, PaymentOperation.REFUND);
 
         Payment replay = idempotencyKeyService.checkAndReplay(idempotencyKey, requestHash);
         if (replay != null) return replay;
@@ -172,7 +170,7 @@ public class PaymentService {
      *
      * @throws GatewayException 404 if the payment does not exist
      */
-    public Payment getPayment(UUID paymentId) {
+    public Payment getPayment(@NonNull UUID paymentId) {
         return paymentRepository.findById(paymentId)
             .orElseThrow(() -> new GatewayException("Payment not found",
                 HttpStatus.NOT_FOUND, "payment_not_found", null));

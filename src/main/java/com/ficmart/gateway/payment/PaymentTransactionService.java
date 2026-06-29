@@ -37,14 +37,6 @@ import com.ficmart.gateway.idempotency.IdempotencyRepository;
  *   <li>Idempotency key row — {@code locked_at} cleared, response stored for future replay</li>
  *   <li>Payment event — records success or failure</li>
  * </ol>
- *
- * <p>If the gateway crashes between phase 1 and phase 2, the payment row is left in an
- * intermediate status ({@code PENDING}, {@code CAPTURING}, {@code VOIDING}, {@code REFUNDING}).
- * The reconciliation worker detects this and replays the bank call idempotently to resolve it.
- *
- * <p>{@link IdempotencyKeyService#lock} and {@link IdempotencyKeyService#unlock} carry no
- * {@code @Transactional} annotation of their own — they participate in the calling phase
- * method's transaction via Spring's default {@code REQUIRED} propagation.
  */
 @Service
 public class PaymentTransactionService {
@@ -77,9 +69,6 @@ public class PaymentTransactionService {
      *   <li>Writes the {@code AUTHORIZATION_REQUESTED} event</li>
      * </ul>
      *
-     * <p>No {@code SELECT FOR UPDATE} here — the payment row does not exist yet,
-     * so there is nothing to lock against competing operations.
-     *
      * @param request the authorize request from FicMart
      * @param idempotencyKey client-provided UUID forwarded to the bank
      * @param requestHash SHA-256 of the request fields, stored for hash mismatch detection
@@ -101,7 +90,7 @@ public class PaymentTransactionService {
         payment.setUpdatedAt(now);
         paymentRepository.save(payment);
 
-        idempotencyKeyService.lock(idempotencyKey, paymentId, requestHash);
+        idempotencyKeyService.lock(idempotencyKey, paymentId, requestHash, PaymentOperation.AUTHORIZE);
 
         saveEvent(paymentId, idempotencyKey, PaymentEventType.AUTHORIZATION_REQUESTED);
 
@@ -125,7 +114,7 @@ public class PaymentTransactionService {
         payment.setUpdatedAt(Instant.now());
         paymentRepository.save(payment);
 
-        IdempotencyKey idempotencyKeyEntity = idempotencyRepository.findByIdempotencyKey(idempotencyKey);
+        IdempotencyKey idempotencyKeyEntity = idempotencyRepository.findByPaymentIdAndOperation(payment.getId(), PaymentOperation.AUTHORIZE);
         idempotencyKeyService.unlock(idempotencyKeyEntity, 200, serialize(payment));
 
         saveEvent(payment.getId(), idempotencyKey, PaymentEventType.AUTHORIZATION_SUCCEEDED);
@@ -148,7 +137,7 @@ public class PaymentTransactionService {
         payment.setUpdatedAt(Instant.now());
         paymentRepository.save(payment);
 
-        IdempotencyKey idempotencyKeyEntity = idempotencyRepository.findByIdempotencyKey(idempotencyKey);
+        IdempotencyKey idempotencyKeyEntity = idempotencyRepository.findByPaymentIdAndOperation(payment.getId(), PaymentOperation.AUTHORIZE);
         idempotencyKeyService.unlock(idempotencyKeyEntity, ex.getStatus().value(), ex.getMessage());
 
         saveEvent(payment.getId(), idempotencyKey, PaymentEventType.AUTHORIZATION_FAILED);
@@ -163,13 +152,6 @@ public class PaymentTransactionService {
      *   <li>Writes the {@code CAPTURE_REQUESTED} event</li>
      * </ul>
      *
-     * <p>The {@code CAPTURING} intermediate status serves two purposes: it blocks a concurrent
-     * void from reading {@code AUTHORIZED} and proceeding, and it signals the reconciliation
-     * worker to replay the capture on crash recovery.
-     *
-     * <p>The {@code SELECT FOR UPDATE} lock is released when this transaction commits —
-     * before the bank call is made.
-     *
      * @param customerId needed to scope the idempotency key correctly
      * @param requestHash SHA-256 of the payment ID, stored for hash mismatch detection
      */
@@ -183,7 +165,7 @@ public class PaymentTransactionService {
         payment.setUpdatedAt(Instant.now());
         paymentRepository.save(payment);
 
-        idempotencyKeyService.lock(idempotencyKey, paymentId, requestHash);
+        idempotencyKeyService.lock(idempotencyKey, paymentId, requestHash, PaymentOperation.CAPTURE);
 
         saveEvent(payment.getId(), idempotencyKey, PaymentEventType.CAPTURE_REQUESTED);
 
@@ -206,7 +188,7 @@ public class PaymentTransactionService {
         payment.setUpdatedAt(Instant.now());
         paymentRepository.save(payment);
 
-        IdempotencyKey idempotencyKeyEntity = idempotencyRepository.findByIdempotencyKey(idempotencyKey);
+        IdempotencyKey idempotencyKeyEntity = idempotencyRepository.findByPaymentIdAndOperation(payment.getId(), PaymentOperation.CAPTURE);
         idempotencyKeyService.unlock(idempotencyKeyEntity, 200, serialize(payment));
 
         saveEvent(payment.getId(), idempotencyKey, PaymentEventType.CAPTURE_SUCCEEDED);
@@ -229,7 +211,7 @@ public class PaymentTransactionService {
         payment.setUpdatedAt(Instant.now());
         paymentRepository.save(payment);
 
-        IdempotencyKey idempotencyKeyEntity = idempotencyRepository.findByIdempotencyKey(idempotencyKey);
+        IdempotencyKey idempotencyKeyEntity = idempotencyRepository.findByPaymentIdAndOperation(payment.getId(), PaymentOperation.CAPTURE);
         idempotencyKeyService.unlock(idempotencyKeyEntity, ex.getStatus().value(), ex.getMessage());
 
         saveEvent(payment.getId(), idempotencyKey, PaymentEventType.CAPTURE_FAILED);
@@ -243,11 +225,7 @@ public class PaymentTransactionService {
      *   <li>Inserts the idempotency key row with {@code locked_at} set</li>
      *   <li>Writes the {@code VOID_REQUESTED} event</li>
      * </ul>
-     *
-     * <p>The {@code VOIDING} intermediate status blocks a concurrent capture from reading
-     * {@code AUTHORIZED} and proceeding, and signals the reconciliation worker on crash recovery.
      */
-
     @Transactional
     public Payment voidPhaseOne(UUID paymentId, UUID idempotencyKey, String requestHash) {
         Payment payment = paymentRepository.findByIdForUpdate(paymentId)
@@ -258,7 +236,7 @@ public class PaymentTransactionService {
         payment.setUpdatedAt(Instant.now());
         paymentRepository.save(payment);
 
-        idempotencyKeyService.lock(idempotencyKey, paymentId, requestHash);
+        idempotencyKeyService.lock(idempotencyKey, paymentId, requestHash, PaymentOperation.VOID);
 
         saveEvent(payment.getId(), idempotencyKey, PaymentEventType.VOID_REQUESTED);
 
@@ -281,7 +259,7 @@ public class PaymentTransactionService {
         payment.setUpdatedAt(Instant.now());
         paymentRepository.save(payment);
 
-        IdempotencyKey idempotencyKeyEntity = idempotencyRepository.findByIdempotencyKey(idempotencyKey);
+        IdempotencyKey idempotencyKeyEntity = idempotencyRepository.findByPaymentIdAndOperation(payment.getId(), PaymentOperation.VOID);
         idempotencyKeyService.unlock(idempotencyKeyEntity, 200, serialize(payment));
 
         saveEvent(payment.getId(), idempotencyKey, PaymentEventType.VOID_SUCCEEDED);
@@ -304,7 +282,7 @@ public class PaymentTransactionService {
         payment.setUpdatedAt(Instant.now());
         paymentRepository.save(payment);
 
-        IdempotencyKey idempotencyKeyEntity = idempotencyRepository.findByIdempotencyKey(idempotencyKey);
+        IdempotencyKey idempotencyKeyEntity = idempotencyRepository.findByPaymentIdAndOperation(payment.getId(), PaymentOperation.VOID);
         idempotencyKeyService.unlock(idempotencyKeyEntity, ex.getStatus().value(), ex.getMessage());
 
         saveEvent(payment.getId(), idempotencyKey, PaymentEventType.VOID_FAILED);
@@ -318,9 +296,6 @@ public class PaymentTransactionService {
      *   <li>Inserts the idempotency key row with {@code locked_at} set</li>
      *   <li>Writes the {@code REFUND_REQUESTED} event</li>
      * </ul>
-     *
-     * <p>The {@code REFUNDING} intermediate status signals the reconciliation worker
-     * to replay the refund on crash recovery.
      */
     @Transactional
     public Payment refundPhaseOne(UUID paymentId, UUID idempotencyKey, String requestHash) {
@@ -332,7 +307,7 @@ public class PaymentTransactionService {
         payment.setUpdatedAt(Instant.now());
         paymentRepository.save(payment);
 
-        idempotencyKeyService.lock(idempotencyKey, paymentId, requestHash);
+        idempotencyKeyService.lock(idempotencyKey, paymentId, requestHash, PaymentOperation.REFUND);
 
         saveEvent(payment.getId(), idempotencyKey, PaymentEventType.REFUND_REQUESTED);
 
@@ -355,7 +330,7 @@ public class PaymentTransactionService {
         payment.setUpdatedAt(Instant.now());
         paymentRepository.save(payment);
 
-        IdempotencyKey idempotencyKeyEntity = idempotencyRepository.findByIdempotencyKey(idempotencyKey);
+        IdempotencyKey idempotencyKeyEntity = idempotencyRepository.findByPaymentIdAndOperation(payment.getId(), PaymentOperation.REFUND);
         idempotencyKeyService.unlock(idempotencyKeyEntity, 200, serialize(payment));
 
         saveEvent(payment.getId(), idempotencyKey, PaymentEventType.REFUND_SUCCEEDED);
@@ -378,12 +353,40 @@ public class PaymentTransactionService {
         payment.setUpdatedAt(Instant.now());
         paymentRepository.save(payment);
 
-        IdempotencyKey idempotencyKeyEntity = idempotencyRepository.findByIdempotencyKey(idempotencyKey);
+        IdempotencyKey idempotencyKeyEntity = idempotencyRepository.findByPaymentIdAndOperation(payment.getId(), PaymentOperation.REFUND);
         idempotencyKeyService.unlock(idempotencyKeyEntity, ex.getStatus().value(), ex.getMessage());
 
         saveEvent(payment.getId(), idempotencyKey, PaymentEventType.REFUND_FAILED);
     }
     
+    /**
+     * Marks an authorized payment as EXPIRED after the expiration worker confirms
+     * with the bank that the authorization is no longer valid.
+     *
+     * <p>Atomically:
+     * <ul>
+     *   <li>Transitions payment to {@code EXPIRED}, sets {@code expired_at}</li>
+     *   <li>Writes the {@code AUTHORIZATION_EXPIRED} event</li>
+     * </ul>
+     *
+     * <p>No idempotency key unlock needed — expiration is worker-driven,
+     * not triggered by a client request.
+     */
+    @Transactional
+    public void expirePayment(Payment payment) {
+        payment.setStatus(payment.getStatus().transitionTo(PaymentStatus.EXPIRED));
+        payment.setExpiredAt(Instant.now());
+        payment.setUpdatedAt(Instant.now());
+        paymentRepository.save(payment);
+
+        PaymentEvent event = new PaymentEvent();
+        event.setPaymentId(payment.getId());
+        event.setIdempotencyKey(UUID.randomUUID());
+        event.setEventType(PaymentEventType.AUTHORIZATION_EXPIRED);
+        event.setCreatedAt(Instant.now());
+        paymentEventRepository.save(event);
+    }
+
     /**
      * Writes a {@link PaymentEvent} row for the given payment. Called once in every phase
      * method — extracted to eliminate duplication across 12 phase methods.

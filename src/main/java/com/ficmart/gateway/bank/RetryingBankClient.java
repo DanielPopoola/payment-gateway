@@ -61,6 +61,11 @@ public class RetryingBankClient implements BankClient {
         return withRetry(() -> delegate.refund(request, idempotencyKey));
     }
 
+    @Override
+    public BankAuthorizationResponse getAuthorization(String authorizationId) {
+        return withRetry(() -> delegate.getAuthorization(authorizationId));
+    }
+
     /**
      * Executes the given bank operation with retry logic.
      *

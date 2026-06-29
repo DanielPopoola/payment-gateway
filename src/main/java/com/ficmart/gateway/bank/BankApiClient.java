@@ -1,6 +1,7 @@
 package com.ficmart.gateway.bank;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
@@ -29,7 +30,7 @@ public class BankApiClient implements BankClient {
 
     public BankApiClient(@Value("${bank.base-url}") String baseUrl, ObjectMapper objectMapper) {
         this.restClient = RestClient.builder()
-            .baseUrl(baseUrl)
+            .baseUrl(Objects.requireNonNull(baseUrl, "bank.base-url must be set"))
             .defaultHeader("Content-Type", "application/json")
             .messageConverters(converters -> {
                 converters.clear();
@@ -106,5 +107,13 @@ public class BankApiClient implements BankClient {
             .body(request)
             .retrieve()
             .body(BankRefundResponse.class);
+    }
+
+    @Override
+    public BankAuthorizationResponse getAuthorization(String authorizationId) {
+        return restClient.get()
+            .uri("/api/v1/authorizations/{id}", authorizationId)
+            .retrieve()
+            .body(BankAuthorizationResponse.class);
     }
 }

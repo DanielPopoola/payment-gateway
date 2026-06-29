@@ -10,6 +10,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ficmart.gateway.common.GatewayException;
 import com.ficmart.gateway.payment.Payment;
+import com.ficmart.gateway.payment.PaymentOperation;
 
 /**
  * Manages idempotency key lifecycle for all mutating payment operations.
@@ -76,12 +77,13 @@ public class IdempotencyKeyService {
      *
      * @return the saved entity, needed by the caller to pass to {@link #unlock}
      */
-    public IdempotencyKey lock(UUID idempotencyKey, UUID paymentId, String requestHash) {
+    public IdempotencyKey lock(UUID idempotencyKey, UUID paymentId, String requestHash, PaymentOperation operation) {
         Instant now = Instant.now();
         IdempotencyKey entity = new IdempotencyKey();
         entity.setIdempotencyKey(idempotencyKey);
         entity.setPaymentId(paymentId);
         entity.setRequestHash(requestHash);
+        entity.setOperation(operation);
         entity.setLockedAt(now);
         entity.setLastRunAt(now);
         entity.setCreatedAt(now);

@@ -1,17 +1,8 @@
 # payment-gateway
 
-A payment gateway for FicMart, a fictional e-commerce platform. Built as part of the Backend Engineer Path.
-
-## What this does
-
-FicMart's order service calls this gateway to move money. The gateway sits between FicMart and a mock bank that randomly fails, adds latency, and enforces strict rules. The bank will fail. The gateway must not.
-
-Four operations are supported:
-
-- **Authorize** — reserve funds on a card when an order is placed
-- **Capture** — charge the reserved funds when goods ship
-- **Void** — release the hold if the order is cancelled before shipping
-- **Refund** — return money after a delivered order is returned
+A payment gateway sitting between FicMart's order service and a mock bank API.
+Handles authorization, capture, void, and refund — with idempotency, crash
+recovery, and strict state machine enforcement.
 
 ## Stack
 
@@ -19,71 +10,41 @@ Four operations are supported:
 |---|---|
 | Language | Java 21 |
 | Framework | Spring Boot |
-| Persistence | Spring Data JPA / Hibernate + PostgreSQL |
+| Persistence | Spring Data JPA + PostgreSQL |
 | Migrations | Flyway |
 | Build | Maven |
 
-## Project structure
+## How it works
 
-```
-com.ficmart.gateway/
-├── payment/          # authorize, capture, void, refund — controller, service, entity
-├── idempotency/      # idempotency key management, reconciliation worker, expiration worker
-├── bank/             # bank client interface, real HTTP client, retry decorator
-└── common/           # response envelope, exceptions, global error handler
-```
+FicMart sends payment requests to this gateway. The gateway reserves funds with
+the bank, tracks payment state, and handles everything that can go wrong between
+the two: duplicate requests, mid-operation crashes, bank failures, and
+authorization expiry.
 
-## Key design decisions
+Four operations:
 
-**Idempotency at the gateway boundary.** Every mutating request requires an `Idempotency-Key` header. Duplicate requests return the stored response — no second bank call, no second charge. Based on Brandur Leach's Stripe idempotency model.
-
-**Two-phase atomic transactions.** Each operation commits twice: once to record intent (phase 1), then again to record the bank's outcome (phase 2). The bank call happens between phases, with no database connection held open. This means a crash mid-operation leaves a recoverable trail.
-
-**Intermediate payment statuses as the crash-recovery signal.** `CAPTURING`, `VOIDING`, and `REFUNDING` are not just informational — they tell the reconciliation worker exactly what to replay after a crash. No separate recovery-point column needed.
-
-**Reconciliation worker handles crash recovery.** A background job scans for payments stuck in intermediate states and re-calls the bank idempotently. The bank's own idempotency guarantees no double-charge on replay.
-
-**Binary retry classification.** Transient failures (HTTP 500, network errors) are retried with exponential backoff + jitter. Any structured bank error code (4xx) fails fast — no retry.
-
-**No circuit breaker.** The bank's chaos is bounded and not a sustained outage. Retry + reconciliation is sufficient. A circuit breaker's complexity is not justified here.
-
-**Append-only audit log, not a transactional outbox.** Payment events are written atomically with each transaction phase. There is no external consumer, so the outbox pattern adds infrastructure with no benefit.
-
-See `TRADEOFFS.md` for the full reasoning.
+- **Authorize** — reserve funds when an order is placed
+- **Capture** — charge the reserved funds when goods ship
+- **Void** — release the hold if the order is cancelled
+- **Refund** — return money after a delivered order is returned
 
 ## Running locally
 
-### Prerequisites
+**Prerequisites:** Java 21, Maven, Docker
+```bash
+# Get bank repo from and follow instructions in README
+https://github.com/benx421/payment-gateway
 
-- Java 21
-- Maven
-- Docker (for PostgreSQL and the mock bank)
-
-### Start the mock bank
 
 ```bash
+# Start the mock bank
 cd bank && make up
-# Bank API: http://localhost:8787
-# Swagger docs: http://localhost:8787/docs
-```
 
-### Configure
+# Start PostgreSQL
+docker compose up -d
 
-```bash
-cp config.example.yml src/main/resources/application-local.yml
-# Edit application-local.yml with your DB credentials
-```
-
-### Start the gateway
-
-```bash
+# Run the gateway
 mvn spring-boot:run
-```
-
-### Run tests
-
-```bash
-mvn test
 ```
 
 ## API
@@ -102,15 +63,36 @@ All `POST` endpoints require an `Idempotency-Key: <uuid>` header.
 | `GET` | `/payments/{id}/events` | Audit log |
 | `GET` | `/health` | Health check |
 
+Swagger UI available at `http://localhost:8080/swagger-ui.html` when running locally.
+
 ### Response envelope
 
 ```json
-// Success
 { "success": true, "message": "OK", "data": { ... } }
-
-// Error
 { "success": false, "message": "...", "error": { "code": "...", "details": ... } }
 ```
+
+## Key design decisions
+
+**Two-phase transactions.** Each operation commits twice — once before the bank
+call, once after. No database connection held open across a network call. A crash
+between phases leaves a recoverable trail.
+
+**Intermediate statuses as crash signals.** `CAPTURING`, `VOIDING`, and
+`REFUNDING` tell the reconciliation worker exactly what to replay after a crash.
+No separate recovery-point column needed.
+
+**Three concurrency mechanisms for three race windows.** Unique constraint guards
+insertion races. `locked_at` guards in-flight duplicate requests. `SELECT FOR
+UPDATE` + intermediate status guards competing operations with different keys.
+
+**Binary retry classification.** Any structured bank error code (4xx) fails fast.
+HTTP 500 and network errors retry with exponential backoff and jitter.
+
+**No circuit breaker.** Bank chaos is bounded. Retry + reconciliation worker is
+sufficient. A circuit breaker's complexity is not justified here.
+
+See `TRADEOFFS.md` for full reasoning.
 
 ## Payment lifecycle
 
@@ -118,24 +100,14 @@ All `POST` endpoints require an `Idempotency-Key: <uuid>` header.
 PENDING → AUTHORIZED → CAPTURING → CAPTURED → REFUNDING → REFUNDED
                      → VOIDING  → VOIDED
                      → EXPIRED
-          FAILED (from any intermediate state on permanent bank error)
+          FAILED (permanent bank rejection from any operation)
 ```
-
-`CAPTURING`, `VOIDING`, and `REFUNDING` are transient in-flight states. A `GET /payments/{id}` may return these — it means an operation is in progress. Poll again shortly.
 
 ## Test cards
 
-| Card number | Balance | Use case |
+| Card | Balance | Use case |
 |---|---|---|
 | 4111111111111111 | $10,000 | Happy path |
 | 4242424242424242 | $500 | Limited balance |
 | 5555555555554444 | $0 | Insufficient funds |
 | 5105105105105100 | $5,000 | Expired card |
-
-CVV and expiry on file with the mock bank. See `http://localhost:8787/docs` for full test card details.
-
-## Status
-
-- [x] Epic 1 — Foundation (schema, entities, domain types, response envelope)
-- [ ] Epic 2 — Payment operations (authorize, capture, void, refund, query)
-- [ ] Epic 3 — Resilience and tests (reconciliation worker, expiration worker, full test suite)
