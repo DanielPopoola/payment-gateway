@@ -36,3 +36,7 @@ build/
 .env
 
 application-local.yml
+
+
+.dokugen-backup.md
+.dokugen-cache.json
