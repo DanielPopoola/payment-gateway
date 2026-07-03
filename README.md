@@ -23,7 +23,6 @@ This gateway isn't just a simple pass-through to the bank; it's got several buil
       activate IdempotencyService
       alt Idempotency Key not found
         IdempotencyService-->>Gateway: null
-        deactivate IdempotencyService
         Gateway->>PaymentTransactionService: authorizePhaseOne(...)
         activate PaymentTransactionService
         PaymentTransactionService->>DB: INSERT Payment (PENDING), INSERT IdempotencyKey (lockedAt)
@@ -41,18 +40,16 @@ This gateway isn't just a simple pass-through to the bank; it's got several buil
         Gateway-->>FicMart: ApiResponse<Payment> (Success)
       else Idempotency Key found, lockedAt is NULL, requestHash matches
         IdempotencyService-->>Gateway: Stored Payment (from responseBody)
-        deactivate IdempotencyService
         Gateway-->>FicMart: ApiResponse<Payment> (Success - Replayed)
       else Idempotency Key found, lockedAt is NOT NULL
         IdempotencyService--xGateway: GatewayException (Request In Flight)
-        deactivate IdempotencyService
         Gateway--xIdempotencyService: 409 Conflict
       else Idempotency Key found, requestHash mismatch
         IdempotencyService--xGateway: GatewayException (Key Mismatch)
-        deactivate IdempotencyService
         Gateway--xIdempotencyService: 400 Bad Request
       end
       deactivate Gateway
+      deactivate IdempotencyService
     ```
 *   **Atomic Two-Phase Transactions**: Each critical payment operation (authorize, capture, void, refund) is broken into two database transaction phases. The external bank call happens *between* these phases, preventing long-held database locks and improving system resilience against network failures or crashes. If the system crashes mid-operation, there's always a consistent record of intent.
 *   **Crash Recovery with Reconciliation Workers**: Workers periodically scan for payments stuck in intermediate states (like `CAPTURING`, `VOIDING`, `REFUNDING`). If a payment is stuck, the worker automatically retries the bank operation and completes the transaction, ensuring that payments don't get lost or remain incomplete due to unexpected failures.
