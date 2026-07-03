@@ -58,21 +58,21 @@ This gateway isn't just a simple pass-through to the bank; it's got several buil
 *   **Crash Recovery with Reconciliation Workers**: Workers periodically scan for payments stuck in intermediate states (like `CAPTURING`, `VOIDING`, `REFUNDING`). If a payment is stuck, the worker automatically retries the bank operation and completes the transaction, ensuring that payments don't get lost or remain incomplete due to unexpected failures.
     ```mermaid
     flowchart TD
-        Start((Start)) --> ReconciliationWorker
-        ReconciliationWorker["ReconciliationWorker (Scheduled)"] --> FindStuckPayments["Find payments in CAPTURING, VOIDING, REFUNDING statuses"]
-        FindStuckPayments --> LoopPayments{For each Stuck Payment}
-        LoopPayments --> RecoverPayment[Recover Payment]
-        RecoverPayment --> IdentifyOperation{Identify intended operation (Capture/Void/Refund)}
-        IdentifyOperation --> FetchIdempotencyKey["Fetch IdempotencyKey from DB"]
-        FetchIdempotencyKey --> RetryBankCall["Retry Bank API call with IdempotencyKey"]
-        RetryBankCall --> HandleBankResponse{Bank Response?}
-        HandleBankResponse -- Success --> PhaseTwoSuccess["Payment Transaction Service: Phase Two Success (DB Update, Idempotency Unlock)"]
-        HandleBankResponse -- Failure --> LogError["Log Error (Bank Failure)"]
-        PhaseTwoSuccess --> EndLoop
-        LogError --> EndLoop
-        EndLoop --> LoopPayments
-        LoopPayments -- No more stuck payments --> End((End))
-    ```
+   	Start((Start)) --> ReconciliationWorker
+    	ReconciliationWorker["ReconciliationWorker (Scheduled)"] --> FindStuckPayments["Find payments in CAPTURING, VOIDING, REFUNDING states"]
+    	FindStuckPayments --> LoopPayments{For each Stuck Payment}
+    	LoopPayments --> RecoverPayment[Recover Payment]
+   	RecoverPayment --> IdentifyOperation{Identify intended operation: Capture, Void, or Refund}
+    	IdentifyOperation --> FetchIdempotencyKey["Fetch IdempotencyKey from DB"]
+    	FetchIdempotencyKey --> RetryBankCall["Retry Bank API call with IdempotencyKey"]
+    	RetryBankCall --> HandleBankResponse{Bank Response?}
+    	HandleBankResponse -- Success --> PhaseTwoSuccess["Payment Transaction Service: Phase Two Success (DB Update, Idempotency Unlocked)"]
+    	HandleBankResponse -- Failure --> LogError["Log Error (Bank Failure)"]
+    	PhaseTwoSuccess --> EndLoop
+    	LogError --> EndLoop
+    	EndLoop --> LoopPayments
+    	LoopPayments -- No more stuck payments --> End((End))
+```
 *   **Authorization Expiration Worker**: A dedicated worker checks for authorized payments nearing or past their expiration time. It verifies with the bank if the authorization is still valid and marks the payment as `EXPIRED` if confirmed, cleaning up old authorizations and maintaining accurate payment states.
 *   **Robust Error Handling & Retries**: Bank errors are intelligently categorized. Transient errors (like 5xx HTTP codes) are retried with exponential backoff and jitter to prevent overwhelming the bank. Permanent errors (like 4xx HTTP codes) fail fast to provide immediate feedback.
 
