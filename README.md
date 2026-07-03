@@ -69,7 +69,7 @@ This gateway isn't just a simple pass-through to the bank; it's got several buil
     	LogError --> EndLoop
     	EndLoop --> LoopPayments
     	LoopPayments -- No more stuck payments --> End((End))
-```
+    ```
 *   **Authorization Expiration Worker**: A dedicated worker checks for authorized payments nearing or past their expiration time. It verifies with the bank if the authorization is still valid and marks the payment as `EXPIRED` if confirmed, cleaning up old authorizations and maintaining accurate payment states.
 *   **Robust Error Handling & Retries**: Bank errors are intelligently categorized. Transient errors (like 5xx HTTP codes) are retried with exponential backoff and jitter to prevent overwhelming the bank. Permanent errors (like 4xx HTTP codes) fail fast to provide immediate feedback.
 
